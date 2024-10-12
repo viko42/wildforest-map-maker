@@ -33,14 +33,17 @@ function drawMap() {
 
     // Draw selection rectangle if multi-selecting
     if (isMultiSelecting && selectionRect) {
-        ctx.strokeStyle = 'blue';
+        const { x: startX, y: startY } = getCanvasCoordinates({ clientX: selectionRect.startX, clientY: selectionRect.startY }, false);
+        const { x: endX, y: endY } = getCanvasCoordinates({ clientX: selectionRect.endX, clientY: selectionRect.endY }, false);
+        
+        ctx.strokeStyle = '#3ea3ba';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(
-            selectionRect.startX ,
-            selectionRect.startY,
-            selectionRect.endX - selectionRect.startX,
-            selectionRect.endY - selectionRect.startY
+            startX,
+            startY,
+            endX - startX,
+            endY - startY
         );
         ctx.setLineDash([]);
     }
@@ -49,6 +52,16 @@ function drawMap() {
     selectedItems.forEach(item => {
         drawSelectionIndicator(item);
     });
+
+    // Draw the lines
+    drawnLines.forEach(line => drawLine(line));
+
+    // Draw the preview line
+    if (previewLine) {
+        drawLine(previewLine);
+    }
+
+    ctx.setLineDash([]); // Reset line dash
 }
 
 function drawItem(item) {
@@ -118,38 +131,50 @@ function loadItems() {
     }
 }
 
+// Add this new function to load image configuration
+function loadImageConfig(imagePath) {
+    const configPath = imagePath.replace('.png', '.config');
+    return fetch(configPath)
+        .then(response => response.json())
+        .catch(() => ({ scale: 0.5, rotation: 0 })); // Default values if config doesn't exist
+}
+
+// Modify the addItemToMap function
 function addItemToMap(itemImg, x = mapWidth / 2, y = mapHeight / 2) {
     const maxDimension = Math.min(mapWidth, mapHeight) * 0.15; // 15% of the smaller map dimension
-    const scale = Math.min(maxDimension / itemImg.naturalWidth, maxDimension / itemImg.naturalHeight);
-    
     const actionButtonsWidth = document.querySelector('.action-buttons-vertical').offsetWidth;
     
-    const newItem = {
-        image: new Image(),
-        x: x + actionButtonsWidth,
-        y: y,
-        width: itemImg.naturalWidth * scale, // Remove lastScale
-        height: itemImg.naturalHeight * scale, // Remove lastScale
-        rotation: 0, // Set to 0 instead of lastRotation
-        reversed: false,
-        locked: false,
-    };
-    newItem.image.src = itemImg.src;
-    newItem.image.alt = itemImg.alt;
-    newItem.image.onload = () => {
-        // Find the index where background tiles end
-        const backgroundEndIndex = placedItems.findIndex(item => !item.locked || !(item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
+    loadImageConfig(itemImg.src).then(config => {
+        const scale = config.scale;
+        const rotation = (config.rotation || 0) * (Math.PI / 180); // Convert to radians
         
-        if (backgroundEndIndex === -1) {
-            // If no background tiles, or all items are background, add to the end
-            placedItems.push(newItem);
-        } else {
-            // Insert the new item after the background tiles
-            placedItems.splice(backgroundEndIndex, 0, newItem);
-        }
-        drawMap();
-        updateItemsTable();
-    };
+        const newItem = {
+            image: new Image(),
+            x: x + actionButtonsWidth,
+            y: y,
+            width: itemImg.naturalWidth * scale,
+            height: itemImg.naturalHeight * scale,
+            rotation: rotation,
+            reversed: false,
+            locked: false,
+        };
+        newItem.image.src = itemImg.src;
+        newItem.image.alt = itemImg.alt;
+        newItem.image.onload = () => {
+            // Find the index where background tiles end
+            const backgroundEndIndex = placedItems.findIndex(item => !item.locked || !(item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
+            
+            if (backgroundEndIndex === -1) {
+                // If no background tiles, or all items are background, add to the end
+                placedItems.push(newItem);
+            } else {
+                // Insert the new item after the background tiles
+                placedItems.splice(backgroundEndIndex, 0, newItem);
+            }
+            drawMap();
+            updateItemsTable();
+        };
+    });
 }
 
 function dragStart(e) {
@@ -162,7 +187,8 @@ const ACTIONS = {
     ROTATE: 'rotate',
     RESIZE: 'resize',
     REVERSE: 'reverse',
-    PUT_IN_FIRST: 'putInFirst'
+    PUT_IN_FIRST: 'putInFirst',
+    DRAW: 'draw'
 };
 
 // State
@@ -177,6 +203,13 @@ let initialMouseX, initialMouseY;
 let selectedItems = [];
 let isMultiSelecting = false;
 let selectionRect = null;
+
+// Add these new state variables at the top of your file
+let isDrawing = false;
+let drawColor = null;
+let drawStartPoint = null;
+let drawnLines = [];
+let previewLine = null;
 
 // DOM Elements
 const moveButton = document.getElementById('moveButton');
@@ -199,6 +232,9 @@ let itemsTable;
 let lastRotation = 0;
 let lastScale = 1;
 
+// Add this near the beginning of your file, with other variable declarations
+let currentColor = 'grey';
+
 // Initialization
 function init() {
     resizeMap();
@@ -207,6 +243,7 @@ function init() {
     initActionButtons();
     initItemsTable();
     initTopbarMenus();
+    initDrawButton();
 }
 
 function initTopbarMenus() {
@@ -314,6 +351,7 @@ function initEventListeners() {
     mapCanvas.addEventListener('mousedown', handleMouseDown);
     mapCanvas.addEventListener('mousemove', handleMouseMove);
     mapCanvas.addEventListener('mouseup', handleMouseUp);
+    mapCanvas.addEventListener('click', handleCanvasClick);
     // mapCanvas.addEventListener('dblclick', confirmItemPosition);
 }
 
@@ -333,16 +371,32 @@ function initActionButtons() {
 
 // Action Handling
 function setAction(action) {
-    currentAction = action;
+    if (currentAction === action) {
+        // If the same action is clicked again, deselect it
+        currentAction = null;
+    } else {
+        currentAction = action;
+    }
     updateActionButtons();
     updateSliderControls();
+
+    // Reset drawing state when switching to or from draw mode
+    if (action === ACTIONS.DRAW || currentAction === null) {
+        drawStartPoint = null;
+        isDrawing = false;
+        previewLine = null;
+    }
+
+    // Show/hide color selection based on whether draw mode is active
+    const colorSelection = document.getElementById('colorSelection');
+    colorSelection.style.display = currentAction === ACTIONS.DRAW ? 'block' : 'none';
 }
 
 function updateActionButtons() {
-    const buttons = [moveButton, rotateButton, resizeButton];
+    const buttons = [moveButton, rotateButton, resizeButton, drawButton];
     buttons.forEach(button => {
         const actionName = button.id.replace('Button', '');
-        if (selectedItems.length > 0) {
+        if (actionName === 'draw' || selectedItems.length > 0) {
             button.disabled = false;
             button.classList.toggle('active', actionName === currentAction);
         } else {
@@ -425,11 +479,22 @@ function handleResizeInput() {
 }
 
 function handleMouseMove(e) {
-    const { x, y } = getCanvasCoordinates(e);
+    const { x, y } = getCanvasCoordinates(e, currentAction === ACTIONS.DRAW);
     
     if (isMultiSelecting) {
-        selectionRect.endX = x;
-        selectionRect.endY = y;
+        selectionRect.endX = e.clientX;
+        selectionRect.endY = e.clientY;
+        drawMap();
+        return;
+    }
+
+    // Add this new block for drawing preview
+    if (isDrawing && drawStartPoint) {
+        previewLine = {
+            start: drawStartPoint,
+            end: { x, y },
+            color: drawColor
+        };
         drawMap();
         return;
     }
@@ -505,9 +570,15 @@ function resizeItems(x, y) {
 }
 
 function handleMouseDown(e) {
-    const { x, y } = getCanvasCoordinates(e);
+    const { x, y } = getCanvasCoordinates(e, currentAction === ACTIONS.DRAW);
     console.log('Mouse down at:', x, y);
     
+    if (currentAction === ACTIONS.DRAW) {
+        isDrawing = true;
+        drawStartPoint = { x, y };
+        return;
+    }
+
     const clickedItem = [...placedItems].reverse().find(item => {
         return !item.locked && isPointInItem(x, y, item);
     });
@@ -524,7 +595,12 @@ function handleMouseDown(e) {
         } else {
             // Start multi-selection rectangle if no item was clicked
             isMultiSelecting = true;
-            selectionRect = { startX: x, startY: y, endX: x, endY: y };
+            selectionRect = { 
+                startX: e.clientX, 
+                startY: e.clientY, 
+                endX: e.clientX, 
+                endY: e.clientY 
+            };
         }
     } else {
         // Regular click functionality
@@ -553,6 +629,20 @@ function handleMouseDown(e) {
 }
 
 function handleMouseUp(e) {
+    if (isDrawing) {
+        const { x, y } = getCanvasCoordinates(e, isDrawing);
+        drawnLines.push({
+            start: drawStartPoint,
+            end: { x, y },
+            color: drawColor
+        });
+        isDrawing = false;
+        drawStartPoint = null;
+        previewLine = null;
+        drawMap();
+        return;
+    }
+
     if (isMultiSelecting) {
         finishMultiSelection();
     }
@@ -612,8 +702,23 @@ function toggleLock(index) {
 }
 
 function removeItem(index) {
+    const removedItem = placedItems[index];
     placedItems.splice(index, 1);
+
+    // Remove the item from selectedItems if it's there
+    const selectedIndex = selectedItems.indexOf(removedItem);
+    if (selectedIndex !== -1) {
+        selectedItems.splice(selectedIndex, 1);
+    }
+
+    // If the removed item was the selectedItem, clear it
+    if (selectedItem === removedItem) {
+        selectedItem = null;
+    }
+
     updateItemsTable();
+    updateActionButtons();
+    updateSliderControls();
     drawMap();
 }
 
@@ -626,13 +731,16 @@ function putItemLast(index) {
 }
 
 // Utility Functions
-function getCanvasCoordinates(e) {
+function getCanvasCoordinates(e, forDrawing = false) {
     const rect = mapCanvas.getBoundingClientRect();
     const scaleX = mapCanvas.width / rect.width;
     const scaleY = mapCanvas.height / rect.height;
-    const actionButtonsWidth = document.querySelector('.action-buttons-vertical').offsetWidth - 12;
+    const actionButtonsWidth = document.querySelector('.action-buttons-vertical').offsetWidth;
+    const offsetForSelection = 12;
+    const offsetForDrawing = 39;
+    const offset = forDrawing ? offsetForDrawing : offsetForSelection;
     return {
-        x: (e.clientX - rect.left - actionButtonsWidth) * scaleX,
+        x: (e.clientX - rect.left - (actionButtonsWidth - offset)) * scaleX,
         y: (e.clientY - rect.top) * scaleY
     };
 }
@@ -675,7 +783,7 @@ function dragOver(e) {
 function drop(e) {
     e.preventDefault();
     const data = e.dataTransfer.getData('text/plain');
-    const { x, y } = getCanvasCoordinates(e);
+    const { x, y } = getCanvasCoordinates(e, false);
     const img = new Image();
     img.src = data;
     img.onload = () => {
@@ -772,10 +880,8 @@ function exportCanvasAsImage() {
 
 // Add this new function to finish multi-selection
 function finishMultiSelection() {
-    const left = Math.min(selectionRect.startX, selectionRect.endX);
-    const right = Math.max(selectionRect.startX, selectionRect.endX);
-    const top = Math.min(selectionRect.startY, selectionRect.endY);
-    const bottom = Math.max(selectionRect.startY, selectionRect.endY);
+    const { x: left, y: top } = getCanvasCoordinates({ clientX: Math.min(selectionRect.startX, selectionRect.endX), clientY: Math.min(selectionRect.startY, selectionRect.endY) }, false);
+    const { x: right, y: bottom } = getCanvasCoordinates({ clientX: Math.max(selectionRect.startX, selectionRect.endX), clientY: Math.max(selectionRect.startY, selectionRect.endY) }, false);
 
     selectedItems = placedItems.filter(item => 
         item.x > left && item.x < right && item.y > top && item.y < bottom
@@ -810,7 +916,8 @@ function exportMapAsJSON() {
             rotation: item.rotation,
             reversed: item.reversed,
             locked: item.locked
-        }))
+        })),
+        drawnLines: drawnLines
     };
 
     const jsonString = JSON.stringify(mapData, null, 2);
@@ -840,6 +947,7 @@ function importMapFromJSON() {
     try {
         const mapData = JSON.parse(jsonString);
         placedItems = [];
+        drawnLines = mapData.drawnLines || [];
 
         const imageLoadPromises = mapData.placedItems.map(item => {
             return new Promise((resolve, reject) => {
@@ -878,6 +986,99 @@ function importMapFromJSON() {
     } catch (error) {
         console.error('Error parsing JSON:', error);
         alert('Invalid JSON format. Please check the input and try again.');
+    }
+}
+
+// Add this new function to initialize the draw button and color selection
+function initDrawButton() {
+    const drawButton = document.getElementById('drawButton');
+    const colorButtons = document.querySelectorAll('.color-btn');
+
+    drawButton.addEventListener('click', () => {
+        setAction(ACTIONS.DRAW);
+    });
+
+    colorButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            drawColor = btn.dataset.color;
+            colorButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            console.log('Selected color:', drawColor);
+        });
+    });
+
+    // Add this to your event listener setup
+    document.querySelectorAll('.color-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent the click from closing the submenu
+            currentColor = this.dataset.color;
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Update your drawing function to use the currentColor
+    function startDrawing(e) {
+        isDrawing = true;
+        draw(e);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = currentColor;
+        // ... rest of your drawing code ...
+    }
+
+    // Make sure to set an initial active color
+    document.querySelector('.color-btn[data-color="grey"]').classList.add('active');
+}
+
+// Add this new function to handle canvas clicks for drawing
+function handleCanvasClick(e) {
+    if (currentAction !== ACTIONS.DRAW || !drawColor) return;
+
+    const { x, y } = getCanvasCoordinates(e, true);
+    console.log('Canvas clicked at:', x, y);
+
+    if (!drawStartPoint) {
+        drawStartPoint = { x, y };
+        console.log('Set start point:', drawStartPoint);
+    } else {
+        drawnLines.push({
+            start: drawStartPoint,
+            end: { x, y },
+            color: drawColor
+        });
+        console.log('Drew line:', drawnLines[drawnLines.length - 1]);
+        drawStartPoint = null;
+        drawMap();
+    }
+}
+
+function drawLine(line) {
+    const dotSize = 3; // Size of each dot
+    const dotSpacing = 10; // Increased space between dots
+
+    // Calculate the angle and distance between start and end points
+    const dx = line.end.x - line.start.x;
+    const dy = line.end.y - line.start.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    // Calculate the number of dots to draw
+    const dotCount = Math.floor(distance / dotSpacing);
+
+    ctx.fillStyle = line.color;
+
+    // Draw dots along the line
+    for (let i = 0; i <= dotCount; i++) {
+        const x = line.start.x + (Math.cos(angle) * dotSpacing * i);
+        const y = line.start.y + (Math.sin(angle) * dotSpacing * i);
+
+        ctx.beginPath();
+        ctx.arc(x, y, dotSize / 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 

@@ -70,6 +70,16 @@
                         <button id="resizeButton" class="btn-action" disabled title="Resize">
                             <i class="fas fa-expand-arrows-alt"></i>
                         </button>
+                        <div class="pen-button-container">
+                            <button id="drawButton" class="btn-action" title="Draw">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <div id="colorSelection" class="color-selection-hover">
+                                <button class="color-btn" data-color="grey"></button>
+                                <button class="color-btn" data-color="red"></button>
+                                <button class="color-btn" data-color="#3ea3ba" style="background-color: #3ea3ba;"></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <canvas id="map"></canvas>
