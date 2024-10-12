@@ -118,7 +118,16 @@ function addItemToMap(itemImg, x = mapWidth / 2, y = mapHeight / 2) {
     newItem.image.src = itemImg.src;
     newItem.image.alt = itemImg.alt;
     newItem.image.onload = () => {
-        placedItems.push(newItem);
+        // Find the index where background tiles end
+        const backgroundEndIndex = placedItems.findIndex(item => !item.locked || !(item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
+        
+        if (backgroundEndIndex === -1) {
+            // If no background tiles, or all items are background, add to the end
+            placedItems.push(newItem);
+        } else {
+            // Insert the new item after the background tiles
+            placedItems.splice(backgroundEndIndex, 0, newItem);
+        }
         drawMap();
         updateItemsTable();
     };
@@ -593,15 +602,16 @@ function drop(e) {
 function generateBackground() {
     const tile1 = new Image();
     const tile2 = new Image();
-    tile1.src = 'items/background/tile1.png'; // Replace with actual path to your first tile image
-    tile2.src = 'items/background/tile2.png'; // Replace with actual path to your second tile image
+    tile1.src = 'items/background/tile1.png';
+    tile2.src = 'items/background/tile2.png';
 
     Promise.all([
         new Promise(resolve => tile1.onload = resolve),
         new Promise(resolve => tile2.onload = resolve)
     ]).then(() => {
-        const tileWidth = 64; // Adjust this value based on your tile size
-        const tileHeight = 64; // Adjust this value based on your tile size
+        const tileWidth = 64;
+        const tileHeight = 64;
+        const backgroundTiles = [];
 
         for (let y = 0; y < mapHeight; y += tileHeight) {
             for (let x = 0; x < mapWidth; x += tileWidth) {
@@ -616,9 +626,12 @@ function generateBackground() {
                     reversed: false,
                     locked: true,
                 };
-                placedItems.push(newItem);
+                backgroundTiles.push(newItem);
             }
         }
+
+        // Insert background tiles at the beginning of placedItems
+        placedItems.unshift(...backgroundTiles);
 
         drawMap();
         updateItemsTable();
