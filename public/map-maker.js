@@ -30,6 +30,25 @@ function drawMap() {
             drawSelectionIndicator(item);
         }
     });
+
+    // Draw selection rectangle if multi-selecting
+    if (isMultiSelecting && selectionRect) {
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(
+            selectionRect.startX,
+            selectionRect.startY,
+            selectionRect.endX - selectionRect.startX,
+            selectionRect.endY - selectionRect.startY
+        );
+        ctx.setLineDash([]);
+    }
+
+    // Draw selection indicators for all selected items
+    selectedItems.forEach(item => {
+        drawSelectionIndicator(item);
+    });
 }
 
 function drawItem(item) {
@@ -154,6 +173,11 @@ let isMoving = false;
 let dragStartX, dragStartY;
 let initialMouseX, initialMouseY;
 
+// Add these new state variables
+let selectedItems = [];
+let isMultiSelecting = false;
+let selectionRect = null;
+
 // DOM Elements
 const moveButton = document.getElementById('moveButton');
 const rotateButton = document.getElementById('rotateButton');
@@ -216,14 +240,14 @@ function updateItemsTable() {
     const backgroundTiles = placedItems.filter(item => item.locked && (item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
     const otherItems = placedItems.filter(item => !backgroundTiles.includes(item));
 
-    // Move the selected item to the top of the list
-    if (selectedItem) {
+    // Move the selected items to the top of the list
+    selectedItems.forEach(selectedItem => {
         const index = otherItems.indexOf(selectedItem);
         if (index > -1) {
             otherItems.splice(index, 1);
             otherItems.unshift(selectedItem);
         }
-    }
+    });
 
     itemsTable.innerHTML = `
         <thead>
@@ -242,7 +266,7 @@ function updateItemsTable() {
                 </td>
             </tr>
             ${otherItems.map((item, index) => `
-                <tr class="${item === selectedItem ? 'selected-item' : ''}" onclick="selectItemFromTable(${placedItems.indexOf(item)})">
+                <tr class="${selectedItems.includes(item) ? 'table-primary' : ''}" onclick="toggleItemSelection(${placedItems.indexOf(item)})">
                     <td>${placedItems.indexOf(item)}</td>
                     <td>${item.image.alt || `Item ${index + 1}`}</td>
                     <td>
@@ -313,7 +337,7 @@ function updateActionButtons() {
     const buttons = [moveButton, rotateButton, resizeButton];
     buttons.forEach(button => {
         const actionName = button.id.replace('Button', '');
-        if (selectedItem) {
+        if (selectedItems.length > 0) {
             button.disabled = false;
             button.classList.toggle('active', actionName === currentAction);
         } else {
@@ -324,15 +348,17 @@ function updateActionButtons() {
 }
 
 function updateSliderControls() {
-    if (selectedItem && (currentAction === ACTIONS.ROTATE || currentAction === ACTIONS.RESIZE)) {
+    if (selectedItems.length > 0 && (currentAction === ACTIONS.ROTATE || currentAction === ACTIONS.RESIZE)) {
         sliderControls.style.display = 'block';
         rotateSlider.style.display = currentAction === ACTIONS.ROTATE ? 'block' : 'none';
         resizeSlider.style.display = currentAction === ACTIONS.RESIZE ? 'block' : 'none';
         
         if (currentAction === ACTIONS.ROTATE) {
-            rotateRange.value = rotateInput.value = Math.round(selectedItem.rotation * (180 / Math.PI));
+            const avgRotation = selectedItems.reduce((sum, item) => sum + item.rotation, 0) / selectedItems.length;
+            rotateRange.value = rotateInput.value = Math.round(avgRotation * (180 / Math.PI));
         } else if (currentAction === ACTIONS.RESIZE) {
-            resizeRange.value = resizeInput.value = Math.round((selectedItem.width / selectedItem.image.naturalWidth) * 100);
+            const avgScale = selectedItems.reduce((sum, item) => sum + (item.width / item.image.naturalWidth), 0) / selectedItems.length;
+            resizeRange.value = resizeInput.value = Math.round(avgScale * 100);
         }
     } else {
         sliderControls.style.display = 'none';
@@ -340,83 +366,173 @@ function updateSliderControls() {
 }
 
 function handleRotateSlider() {
-    if (selectedItem) {
+    if (selectedItems.length > 0) {
         const degrees = parseInt(rotateRange.value);
         rotateInput.value = degrees;
-        selectedItem.rotation = degrees * (Math.PI / 180);
-        lastRotation = selectedItem.rotation; // Store the last rotation
+        const rotation = degrees * (Math.PI / 180);
+        selectedItems.forEach(item => {
+            item.rotation = rotation;
+        });
+        lastRotation = rotation;
         drawMap();
     }
 }
 
 function handleRotateInput() {
-    if (selectedItem) {
+    if (selectedItems.length > 0) {
         let degrees = parseInt(rotateInput.value);
         degrees = Math.min(Math.max(degrees, 0), 360);
         rotateRange.value = rotateInput.value = degrees;
-        selectedItem.rotation = degrees * (Math.PI / 180);
-        lastRotation = selectedItem.rotation; // Store the last rotation
+        const rotation = degrees * (Math.PI / 180);
+        selectedItems.forEach(item => {
+            item.rotation = rotation;
+        });
+        lastRotation = rotation;
         drawMap();
     }
 }
 
 function handleResizeSlider() {
-    if (selectedItem) {
+    if (selectedItems.length > 0) {
         const scale = parseInt(resizeRange.value) / 100;
         resizeInput.value = resizeRange.value;
-        resizeSelectedItem(scale);
-        lastScale = scale; // Store the last scale
+        selectedItems.forEach(item => {
+            item.width = item.image.naturalWidth * scale;
+            item.height = item.image.naturalHeight * scale;
+        });
+        lastScale = scale;
+        drawMap();
     }
 }
 
 function handleResizeInput() {
-    if (selectedItem) {
+    if (selectedItems.length > 0) {
         let scale = parseInt(resizeInput.value);
         scale = Math.min(Math.max(scale, 10), 200);
         resizeRange.value = resizeInput.value = scale;
-        resizeSelectedItem(scale / 100);
-        lastScale = scale / 100; // Store the last scale
+        selectedItems.forEach(item => {
+            item.width = item.image.naturalWidth * scale / 100;
+            item.height = item.image.naturalHeight * scale / 100;
+        });
+        lastScale = scale / 100;
+        drawMap();
     }
 }
 
-function resizeSelectedItem(scale) {
-    selectedItem.width = selectedItem.image.naturalWidth * scale;
-    selectedItem.height = selectedItem.image.naturalHeight * scale;
+function handleMouseMove(e) {
+    const { x, y } = getCanvasCoordinates(e);
+    
+    if (isMultiSelecting) {
+        selectionRect.endX = x;
+        selectionRect.endY = y;
+        drawMap();
+        return;
+    }
+
+    // Check if the mouse is over any item
+    const hoveredItem = placedItems.find(item => !item.locked && isPointInItem(x, y, item));
+    
+    // Change cursor style based on whether an item is hovered
+    mapCanvas.style.cursor = hoveredItem ? 'pointer' : 'default';
+
+    if (!isMoving || selectedItems.length === 0) return;
+    
+    const dx = x - initialMouseX;
+    const dy = y - initialMouseY;
+
+    switch (currentAction) {
+        case ACTIONS.MOVE:
+            selectedItems.forEach(item => {
+                item.x += dx;
+                item.y += dy;
+            });
+            initialMouseX = x;
+            initialMouseY = y;
+            break;
+        case ACTIONS.ROTATE:
+            rotateItems(x, y);
+            break;
+        case ACTIONS.RESIZE:
+            resizeItems(x, y);
+            break;
+    }
+    
     drawMap();
 }
 
-// Item Selection and Manipulation
+function rotateItems(x, y) {
+    if (selectedItems.length === 0) return;
+    
+    const centerX = selectedItems.reduce((sum, item) => sum + item.x, 0) / selectedItems.length;
+    const centerY = selectedItems.reduce((sum, item) => sum + item.y, 0) / selectedItems.length;
+    
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const rotation = Math.atan2(dy, dx);
+    
+    selectedItems.forEach(item => {
+        item.rotation = rotation;
+    });
+}
+
+function resizeItems(x, y) {
+    if (selectedItems.length === 0) return;
+    
+    const centerX = selectedItems.reduce((sum, item) => sum + item.x, 0) / selectedItems.length;
+    const centerY = selectedItems.reduce((sum, item) => sum + item.y, 0) / selectedItems.length;
+    
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const distance = Math.hypot(dx, dy);
+    
+    const averageOriginalSize = selectedItems.reduce((sum, item) => 
+        sum + Math.max(item.image.naturalWidth, item.image.naturalHeight), 0) / selectedItems.length;
+    
+    const scale = distance / (averageOriginalSize * 0.5);
+    const minScale = 0.1;
+    const maxScale = 2;
+    const clampedScale = Math.min(Math.max(scale, minScale), maxScale);
+    
+    selectedItems.forEach(item => {
+        item.width = item.image.naturalWidth * clampedScale;
+        item.height = item.image.naturalHeight * clampedScale;
+    });
+}
+
 function handleMouseDown(e) {
     const { x, y } = getCanvasCoordinates(e);
     console.log('Mouse down at:', x, y);
     
-    // Draw a small circle where the click occurred
-    ctx.save();
-    ctx.fillStyle = 'red';
-    ctx.beginPath();
-    ctx.arc(x, y, 3, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.restore();
-    
-    // Reverse the array to check from top to bottom
+    if (e.shiftKey) {
+        isMultiSelecting = true;
+        selectionRect = { startX: x, startY: y, endX: x, endY: y };
+        return;
+    }
+
+    if (!e.ctrlKey && !selectedItems.some(item => isPointInItem(x, y, item))) {
+        selectedItems = [];
+    }
+
     const clickedItem = [...placedItems].reverse().find(item => {
-        const isClicked = isPointInItem(x, y, item);
-        console.log('Checking item:', item, 'Clicked:', isClicked);
-        return !item.locked && isClicked;
+        return !item.locked && isPointInItem(x, y, item);
     });
     
     if (clickedItem) {
-        console.log('Selected item:', clickedItem);
+        if (!selectedItems.includes(clickedItem)) {
+            selectedItems.push(clickedItem);
+        }
         selectedItem = clickedItem;
         initialMouseX = x;
         initialMouseY = y;
-        initialItemX = clickedItem.x;
-        initialItemY = clickedItem.y;
         isMoving = true;
         currentAction = currentAction || ACTIONS.MOVE;
-        updateItemsTable(); // Add this line to update the table when an item is selected
+    } else if (selectedItems.length > 0) {
+        // Allow moving selected items even if clicking empty space
+        initialMouseX = x;
+        initialMouseY = y;
+        isMoving = true;
+        currentAction = currentAction || ACTIONS.MOVE;
     } else {
-        console.log('No item selected');
         selectedItem = null;
         isMoving = false;
         currentAction = null;
@@ -424,37 +540,18 @@ function handleMouseDown(e) {
     
     updateActionButtons();
     updateSliderControls();
-    drawMap();
-}
-
-function handleMouseMove(e) {
-    const { x, y } = getCanvasCoordinates(e);
-    
-    // Check if the mouse is over any item
-    const hoveredItem = placedItems.find(item => !item.locked && isPointInItem(x, y, item));
-    
-    // Change cursor style based on whether an item is hovered
-    mapCanvas.style.cursor = hoveredItem ? 'pointer' : 'default';
-
-    if (!selectedItem || !currentAction || !isMoving) return;
-    
-    switch (currentAction) {
-        case ACTIONS.MOVE:
-            moveItem(selectedItem, x, y);
-            break;
-        case ACTIONS.ROTATE:
-            rotateItem(selectedItem, x, y);
-            break;
-        case ACTIONS.RESIZE:
-            resizeItem(selectedItem, x, y);
-            break;
-    }
-    
+    updateItemsTable();
     drawMap();
 }
 
 function handleMouseUp(e) {
+    if (isMultiSelecting) {
+        finishMultiSelection();
+    }
     isMoving = false;
+    isMultiSelecting = false;
+    selectionRect = null;
+    drawMap();
 }
 
 function stopCurrentAction() {
@@ -481,28 +578,6 @@ function moveItem(item, mouseX, mouseY) {
     console.log('Initial mouse:', initialMouseX, initialMouseY);
     console.log('Delta:', dx, dy);
     console.log('New item position:', item.x, item.y);
-}
-
-function rotateItem(item, x, y) {
-    const dx = x - item.x;
-    const dy = y - item.y;
-    item.rotation = Math.atan2(dy, dx);
-}
-
-function resizeItem(item, x, y) {
-    const dx = x - item.x;
-    const dy = y - item.y;
-    const distance = Math.hypot(dx, dy);
-    const originalSize = Math.max(item.image.naturalWidth, item.image.naturalHeight);
-    const scale = distance / (originalSize * 0.5); // Adjust this value to change resize sensitivity
-    
-    // Limit the scale to a reasonable range (e.g., 0.1 to 2 times the original size)
-    const minScale = 0.1;
-    const maxScale = 2;
-    const clampedScale = Math.min(Math.max(scale, minScale), maxScale);
-    
-    item.width = item.image.naturalWidth * clampedScale;
-    item.height = item.image.naturalHeight * clampedScale;
 }
 
 function reverseItem(index) {
@@ -683,6 +758,33 @@ function exportCanvasAsImage() {
         console.error('Failed to export image:', error);
         alert('Failed to export image. This might be due to running the app from local files. Please try using a local server.');
     }
+}
+
+// Add this new function to finish multi-selection
+function finishMultiSelection() {
+    const left = Math.min(selectionRect.startX, selectionRect.endX);
+    const right = Math.max(selectionRect.startX, selectionRect.endX);
+    const top = Math.min(selectionRect.startY, selectionRect.endY);
+    const bottom = Math.max(selectionRect.startY, selectionRect.endY);
+
+    selectedItems = placedItems.filter(item => 
+        item.x > left && item.x < right && item.y > top && item.y < bottom
+    );
+
+    updateItemsTable();
+}
+
+// Add this new function to toggle item selection
+function toggleItemSelection(index) {
+    const item = placedItems[index];
+    const selectionIndex = selectedItems.indexOf(item);
+    if (selectionIndex === -1) {
+        selectedItems.push(item);
+    } else {
+        selectedItems.splice(selectionIndex, 1);
+    }
+    updateItemsTable();
+    drawMap();
 }
 
 // Initialize the application
