@@ -23,10 +23,13 @@ function drawMap() {
     ctx.fillStyle = '#8fbc8f'; // Default background color
     ctx.fillRect(0, 0, mapWidth, mapHeight);
     
+    console.log('Drawing map with', placedItems.length, 'items');
+    
     // Draw placed items
-    placedItems.forEach(item => {
+    placedItems.forEach((item, index) => {
+        console.log(`Drawing item ${index}:`, item);
         drawItem(item);
-        if (item === selectedItem) {
+        if (selectedItems.includes(item)) {
             drawSelectionIndicator(item);
         }
     });
@@ -65,22 +68,26 @@ function drawMap() {
 }
 
 function drawItem(item) {
-    ctx.save();
-    ctx.translate(item.x, item.y);
-    ctx.rotate(item.rotation);
-    ctx.scale(item.reversed ? -1 : 1, 1);
+    try {
+        ctx.save();
+        ctx.translate(item.x, item.y);
+        ctx.rotate(item.rotation);
+        ctx.scale(item.reversed ? -1 : 1, 1);
 
-    // Draw clickable area
-    const buffer = 5;
-    const fullWidth = item.width + 2 * buffer;
-    const fullHeight = item.height + 2 * buffer;
-    ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
-    ctx.fillRect(-fullWidth / 2, -fullHeight / 2, fullWidth, fullHeight);
+        // Draw clickable area
+        const buffer = 5;
+        const fullWidth = item.width + 2 * buffer;
+        const fullHeight = item.height + 2 * buffer;
+        ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+        ctx.fillRect(-fullWidth / 2, -fullHeight / 2, fullWidth, fullHeight);
 
-    // Draw the item image
-    ctx.drawImage(item.image, -item.width / 2, -item.height / 2, item.width, item.height);
+        // Draw the item image
+        ctx.drawImage(item.image, -item.width / 2, -item.height / 2, item.width, item.height);
 
-    ctx.restore();
+        ctx.restore();
+    } catch (error) {
+        console.error('Error drawing item:', error, item);
+    }
 }
 
 function drawSelectionIndicator(item) {
@@ -211,6 +218,12 @@ let drawStartPoint = null;
 let drawnLines = [];
 let previewLine = null;
 
+// Add these new state variables
+let copiedItems = [];
+
+// Add this new state variable
+let lastCopiedItems = null;
+
 // DOM Elements
 const moveButton = document.getElementById('moveButton');
 const rotateButton = document.getElementById('rotateButton');
@@ -279,6 +292,8 @@ function initItemsTable() {
 
 // Add this new function to update the items table
 function updateItemsTable() {
+    console.log('Updating items table with', placedItems.length, 'items');
+    
     const backgroundTiles = placedItems.filter(item => item.locked && (item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
     const otherItems = placedItems.filter(item => !backgroundTiles.includes(item));
 
@@ -324,6 +339,21 @@ function updateItemsTable() {
             `).join('')}
         </tbody>
     `;
+
+    // Add copy/paste buttons if items are selected
+    if (selectedItems.length > 0) {
+        const copyPasteButtons = `
+            <button class="btn btn-sm btn-outline-primary" onclick="copySelectedItems()">Copy</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="pasteItems()">Paste</button>
+        `;
+        itemsTable.querySelector('tbody').insertAdjacentHTML('afterbegin', `
+            <tr>
+                <td colspan="3">
+                    ${copyPasteButtons}
+                </td>
+            </tr>
+        `);
+    }
 }
 
 // Add this new function to select an item from the table
@@ -352,7 +382,8 @@ function initEventListeners() {
     mapCanvas.addEventListener('mousemove', handleMouseMove);
     mapCanvas.addEventListener('mouseup', handleMouseUp);
     mapCanvas.addEventListener('click', handleCanvasClick);
-    // mapCanvas.addEventListener('dblclick', confirmItemPosition);
+    document.addEventListener('keydown', handleKeyDown);
+    console.log('Event listeners initialized');
 }
 
 function initActionButtons() {
@@ -860,6 +891,11 @@ function exportCanvasAsImage() {
         tempCtx.restore();
     }
 
+    // Draw the lines
+    for (const line of drawnLines) {
+        drawLine(line, tempCtx);
+    }
+
     try {
         // Convert the canvas to a data URL
         const dataURL = tempCanvas.toDataURL('image/png');
@@ -1031,7 +1067,7 @@ function initDrawButton() {
     }
 
     // Make sure to set an initial active color
-    document.querySelector('.color-btn[data-color="grey"]').classList.add('active');
+    document.querySelector('.color-btn[data-color="#444444"]').classList.add('active');
 }
 
 // Add this new function to handle canvas clicks for drawing
@@ -1056,7 +1092,7 @@ function handleCanvasClick(e) {
     }
 }
 
-function drawLine(line) {
+function drawLine(line, context = ctx) {
     const dotSize = 3; // Size of each dot
     const dotSpacing = 10; // Increased space between dots
 
@@ -1069,16 +1105,94 @@ function drawLine(line) {
     // Calculate the number of dots to draw
     const dotCount = Math.floor(distance / dotSpacing);
 
-    ctx.fillStyle = line.color;
+    context.fillStyle = line.color;
 
     // Draw dots along the line
     for (let i = 0; i <= dotCount; i++) {
         const x = line.start.x + (Math.cos(angle) * dotSpacing * i);
         const y = line.start.y + (Math.sin(angle) * dotSpacing * i);
 
-        ctx.beginPath();
-        ctx.arc(x, y, dotSize / 2, 0, Math.PI * 2);
-        ctx.fill();
+        context.beginPath();
+        context.arc(x, y, dotSize / 2, 0, Math.PI * 2);
+        context.fill();
+    }
+}
+
+// Add this new function to show a notification
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.position = 'fixed';
+    notification.style.bottom = '20px';
+    notification.style.right = '20px';
+    notification.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    notification.style.color = 'white';
+    notification.style.padding = '10px';
+    notification.style.borderRadius = '5px';
+    notification.style.zIndex = '1000';
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        document.body.removeChild(notification);
+    }, 2000);
+}
+
+// Modify the handleKeyDown function
+function handleKeyDown(e) {
+    console.log('Key pressed:', e.key);
+    if (e.key.toLowerCase() === 'c') {
+        copySelectedItems();
+    } else if (e.key.toLowerCase() === 'v') {
+        pasteItems();
+    }
+}
+
+// Function to copy selected items
+function copySelectedItems() {
+    if (selectedItems.length > 0) {
+        lastCopiedItems = selectedItems.map(item => ({
+            ...item,
+            x: item.x - selectedItems[0].x,  // Store relative positions
+            y: item.y - selectedItems[0].y
+        }));
+        console.log(`Copied ${lastCopiedItems.length} items`);
+        showNotification(`Copied ${lastCopiedItems.length} item${lastCopiedItems.length > 1 ? 's' : ''}!`);
+    }
+}
+
+// Function to paste copied items
+function pasteItems() {
+    console.log('Attempting to paste items');
+    if (lastCopiedItems && lastCopiedItems.length > 0) {
+        const centerX = mapWidth / 2;
+        const centerY = mapHeight / 2;
+        
+        const newItems = lastCopiedItems.map(item => {
+            const newImage = new Image();
+            newImage.src = item.image.src;
+            return {
+                ...item,
+                x: centerX + item.x,
+                y: centerY + item.y,
+                image: newImage
+            };
+        });
+        
+        console.log('New items created:', newItems);
+        placedItems.push(...newItems);
+        selectedItems = newItems;
+        console.log('Total placed items:', placedItems.length);
+        
+        drawMap();
+        updateItemsTable();
+        updateActionButtons();
+        updateSliderControls();
+        showNotification(`Pasted ${newItems.length} item${newItems.length > 1 ? 's' : ''}!`);
+        
+        console.log(`Pasted ${newItems.length} items`);
+    } else {
+        console.log('No items to paste');
+        showNotification("No items to paste!");
     }
 }
 
