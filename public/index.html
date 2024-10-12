@@ -45,6 +45,7 @@
                     Help
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="helpDropdown">
+                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#tipsModal">Tips</a></li>
                     <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a></li>
                 </ul>
             </li>
@@ -103,6 +104,26 @@
                 </div>
                 <div class="modal-body">
                     Moa made this.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this new modal for the Tips option -->
+    <div class="modal fade" id="tipsModal" tabindex="-1" aria-labelledby="tipsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="tipsModalLabel">Tips</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Controls:</h6>
+                    <ul>
+                        <li><strong>Multi-selection:</strong> Hold Shift and drag to select multiple items</li>
+                        <li><strong>Add to selection:</strong> Hold Ctrl and click to add/remove items from the selection</li>
+                    </ul>
+                    <!-- You can add more tips here as needed -->
                 </div>
             </div>
         </div>

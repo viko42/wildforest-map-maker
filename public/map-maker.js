@@ -503,39 +503,42 @@ function handleMouseDown(e) {
     const { x, y } = getCanvasCoordinates(e);
     console.log('Mouse down at:', x, y);
     
-    if (e.shiftKey) {
-        isMultiSelecting = true;
-        selectionRect = { startX: x, startY: y, endX: x, endY: y };
-        return;
-    }
-
-    if (!e.ctrlKey && !selectedItems.some(item => isPointInItem(x, y, item))) {
-        selectedItems = [];
-    }
-
     const clickedItem = [...placedItems].reverse().find(item => {
         return !item.locked && isPointInItem(x, y, item);
     });
-    
-    if (clickedItem) {
-        if (!selectedItems.includes(clickedItem)) {
-            selectedItems.push(clickedItem);
+
+    if (e.shiftKey) {
+        // Shift + Click functionality
+        if (clickedItem) {
+            const index = selectedItems.indexOf(clickedItem);
+            if (index === -1) {
+                selectedItems.push(clickedItem);
+            } else {
+                selectedItems.splice(index, 1);
+            }
+        } else {
+            // Start multi-selection rectangle if no item was clicked
+            isMultiSelecting = true;
+            selectionRect = { startX: x, startY: y, endX: x, endY: y };
         }
-        selectedItem = clickedItem;
-        initialMouseX = x;
-        initialMouseY = y;
-        isMoving = true;
-        currentAction = currentAction || ACTIONS.MOVE;
-    } else if (selectedItems.length > 0) {
-        // Allow moving selected items even if clicking empty space
-        initialMouseX = x;
-        initialMouseY = y;
-        isMoving = true;
-        currentAction = currentAction || ACTIONS.MOVE;
     } else {
-        selectedItem = null;
-        isMoving = false;
-        currentAction = null;
+        // Regular click functionality
+        if (!e.ctrlKey && clickedItem && !selectedItems.includes(clickedItem)) {
+            selectedItems = [clickedItem];
+        }
+
+        if (clickedItem) {
+            selectedItem = clickedItem;
+            initialMouseX = x;
+            initialMouseY = y;
+            isMoving = true;
+            currentAction = currentAction || ACTIONS.MOVE;
+        } else {
+            selectedItems = [];
+            selectedItem = null;
+            isMoving = false;
+            currentAction = null;
+        }
     }
     
     updateActionButtons();
