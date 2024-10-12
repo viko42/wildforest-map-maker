@@ -107,11 +107,11 @@ function addItemToMap(itemImg, x = mapWidth / 2, y = mapHeight / 2) {
     
     const newItem = {
         image: new Image(),
-        x: x + actionButtonsWidth, // Add the offset here
+        x: x + actionButtonsWidth,
         y: y,
-        width: itemImg.naturalWidth * scale,
-        height: itemImg.naturalHeight * scale,
-        rotation: 0,
+        width: itemImg.naturalWidth * scale * lastScale, // Apply last scale
+        height: itemImg.naturalHeight * scale * lastScale, // Apply last scale
+        rotation: lastRotation, // Apply last rotation
         reversed: false,
         locked: false,
     };
@@ -162,6 +162,10 @@ const resizeInput = document.getElementById('resizeInput');
 // Add this new state variable
 let itemsTable;
 
+// Add these new variables to store the last used settings
+let lastRotation = 0;
+let lastScale = 1;
+
 // Initialization
 function init() {
     resizeMap();
@@ -203,22 +207,34 @@ function updateItemsTable() {
     const backgroundTiles = placedItems.filter(item => item.locked && (item.image.src.includes('tile1.png') || item.image.src.includes('tile2.png')));
     const otherItems = placedItems.filter(item => !backgroundTiles.includes(item));
 
+    // Move the selected item to the top of the list
+    if (selectedItem) {
+        const index = otherItems.indexOf(selectedItem);
+        if (index > -1) {
+            otherItems.splice(index, 1);
+            otherItems.unshift(selectedItem);
+        }
+    }
+
     itemsTable.innerHTML = `
         <thead>
             <tr>
+                <th>Key</th>
                 <th>Item</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
             <tr>
+                <td>-</td>
                 <td>Background Tiles (${backgroundTiles.length})</td>
                 <td>
                     <button class="btn btn-sm btn-outline-danger" onclick="clearBackground()">Clear Background</button>
                 </td>
             </tr>
             ${otherItems.map((item, index) => `
-                <tr>
+                <tr class="${item === selectedItem ? 'selected-item' : ''}" onclick="selectItemFromTable(${placedItems.indexOf(item)})">
+                    <td>${placedItems.indexOf(item)}</td>
                     <td>${item.image.alt || `Item ${index + 1}`}</td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary" onclick="toggleLock(${placedItems.indexOf(item)})">
@@ -233,6 +249,24 @@ function updateItemsTable() {
             `).join('')}
         </tbody>
     `;
+}
+
+// Add this new function to select an item from the table
+function selectItemFromTable(index) {
+    selectedItem = placedItems[index];
+    currentAction = ACTIONS.MOVE;
+    
+    // Apply last used rotation and scale
+    selectedItem.rotation = lastRotation;
+    const originalWidth = selectedItem.image.naturalWidth;
+    const originalHeight = selectedItem.image.naturalHeight;
+    selectedItem.width = originalWidth * lastScale;
+    selectedItem.height = originalHeight * lastScale;
+    
+    updateActionButtons();
+    updateSliderControls();
+    drawMap();
+    updateItemsTable();
 }
 
 function initEventListeners() {
@@ -301,6 +335,7 @@ function handleRotateSlider() {
         const degrees = parseInt(rotateRange.value);
         rotateInput.value = degrees;
         selectedItem.rotation = degrees * (Math.PI / 180);
+        lastRotation = selectedItem.rotation; // Store the last rotation
         drawMap();
     }
 }
@@ -311,6 +346,7 @@ function handleRotateInput() {
         degrees = Math.min(Math.max(degrees, 0), 360);
         rotateRange.value = rotateInput.value = degrees;
         selectedItem.rotation = degrees * (Math.PI / 180);
+        lastRotation = selectedItem.rotation; // Store the last rotation
         drawMap();
     }
 }
@@ -320,6 +356,7 @@ function handleResizeSlider() {
         const scale = parseInt(resizeRange.value) / 100;
         resizeInput.value = resizeRange.value;
         resizeSelectedItem(scale);
+        lastScale = scale; // Store the last scale
     }
 }
 
@@ -329,6 +366,7 @@ function handleResizeInput() {
         scale = Math.min(Math.max(scale, 10), 200);
         resizeRange.value = resizeInput.value = scale;
         resizeSelectedItem(scale / 100);
+        lastScale = scale / 100; // Store the last scale
     }
 }
 
@@ -367,6 +405,7 @@ function handleMouseDown(e) {
         initialItemY = clickedItem.y;
         isMoving = true;
         currentAction = currentAction || ACTIONS.MOVE;
+        updateItemsTable(); // Add this line to update the table when an item is selected
     } else {
         console.log('No item selected');
         selectedItem = null;

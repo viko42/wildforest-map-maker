@@ -227,3 +227,11 @@ footer {
     flex: 1;
     overflow: hidden;
 }
+
+.selected-item {
+    background-color: #e0f7fa !important;
+}
+
+.selected-item:hover {
+    background-color: #b2ebf2 !important;
+}
