@@ -128,9 +128,9 @@ function addItemToMap(itemImg, x = mapWidth / 2, y = mapHeight / 2) {
         image: new Image(),
         x: x + actionButtonsWidth,
         y: y,
-        width: itemImg.naturalWidth * scale * lastScale, // Apply last scale
-        height: itemImg.naturalHeight * scale * lastScale, // Apply last scale
-        rotation: lastRotation, // Apply last rotation
+        width: itemImg.naturalWidth * scale, // Remove lastScale
+        height: itemImg.naturalHeight * scale, // Remove lastScale
+        rotation: 0, // Set to 0 instead of lastRotation
         reversed: false,
         locked: false,
     };
