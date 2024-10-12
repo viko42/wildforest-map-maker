@@ -18,9 +18,9 @@
                     File
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="fileDropdown">
-                    <!-- Add this new line -->
-                    <li><a class="dropdown-item" href="#" id="exportImage">Export</a></li>
-                    <!-- <li><a class="dropdown-item" href="#">Nothing to see here</a></li> -->
+                    <li><a class="dropdown-item" href="#" id="exportImage">Export Image</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportJSON">Export JSON</a></li>
+                    <li><a class="dropdown-item" href="#" id="importJSON">Import JSON</a></li>
                 </ul>
             </li>
             <li class="nav-item dropdown">
@@ -124,6 +124,25 @@
                         <li><strong>Add to selection:</strong> Hold Ctrl and click to add/remove items from the selection</li>
                     </ul>
                     <!-- You can add more tips here as needed -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this new modal for JSON import -->
+    <div class="modal fade" id="importJSONModal" tabindex="-1" aria-labelledby="importJSONModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importJSONModalLabel">Import JSON</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="jsonInput" class="form-control" rows="10" placeholder="Paste your JSON here"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="importJSONButton">Import</button>
                 </div>
             </div>
         </div>

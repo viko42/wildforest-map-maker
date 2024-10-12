@@ -222,8 +222,13 @@ function initTopbarMenus() {
     // Add this new handler for the Export option
     $('#exportImage').on('click', exportCanvasAsImage);
 
+    // Add these new handlers for Export JSON and Import JSON
+    $('#exportJSON').on('click', exportMapAsJSON);
+    $('#importJSON').on('click', () => $('#importJSONModal').modal('show'));
+    $('#importJSONButton').on('click', importMapFromJSON);
+
     // Handle other menu items (placeholder functionality)
-    $('.dropdown-item').not('[data-bs-toggle="modal"]').not('#generateBackground').not('#exportImage').on('click', function(e) {
+    $('.dropdown-item').not('[data-bs-toggle="modal"]').not('#generateBackground').not('#exportImage').not('#exportJSON').not('#importJSON').on('click', function(e) {
         e.preventDefault();
         console.log($(this).text() + ' clicked');
     });
@@ -790,6 +795,90 @@ function toggleItemSelection(index) {
     }
     updateItemsTable();
     drawMap();
+}
+
+// Add this new function to export the map as JSON
+function exportMapAsJSON() {
+    const mapData = {
+        placedItems: placedItems.map(item => ({
+            src: item.image.src,
+            alt: item.image.alt,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            rotation: item.rotation,
+            reversed: item.reversed,
+            locked: item.locked
+        }))
+    };
+
+    const jsonString = JSON.stringify(mapData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    downloadLink.download = `wild_forest_map_${timestamp}.json`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+}
+
+// Add this new function to import the map from JSON
+function importMapFromJSON() {
+    const jsonInput = document.getElementById('jsonInput');
+    const jsonString = jsonInput.value.trim();
+
+    if (!jsonString) {
+        alert('Please paste a valid JSON string.');
+        return;
+    }
+
+    try {
+        const mapData = JSON.parse(jsonString);
+        placedItems = [];
+
+        const imageLoadPromises = mapData.placedItems.map(item => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const newItem = {
+                        image: img,
+                        x: item.x,
+                        y: item.y,
+                        width: item.width,
+                        height: item.height,
+                        rotation: item.rotation,
+                        reversed: item.reversed,
+                        locked: item.locked
+                    };
+                    placedItems.push(newItem);
+                    resolve();
+                };
+                img.onerror = reject;
+                img.src = item.src;
+                img.alt = item.alt;
+            });
+        });
+
+        Promise.all(imageLoadPromises)
+            .then(() => {
+                drawMap();
+                updateItemsTable();
+                $('#importJSONModal').modal('hide');
+                jsonInput.value = '';
+            })
+            .catch(error => {
+                console.error('Error loading images:', error);
+                alert('Error loading images. Please check the JSON data and try again.');
+            });
+    } catch (error) {
+        console.error('Error parsing JSON:', error);
+        alert('Invalid JSON format. Please check the input and try again.');
+    }
 }
 
 // Initialize the application
