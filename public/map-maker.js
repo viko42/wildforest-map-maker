@@ -37,7 +37,7 @@ function drawMap() {
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(
-            selectionRect.startX,
+            selectionRect.startX ,
             selectionRect.startY,
             selectionRect.endX - selectionRect.startX,
             selectionRect.endY - selectionRect.startY
@@ -625,7 +625,7 @@ function getCanvasCoordinates(e) {
     const rect = mapCanvas.getBoundingClientRect();
     const scaleX = mapCanvas.width / rect.width;
     const scaleY = mapCanvas.height / rect.height;
-    const actionButtonsWidth = document.querySelector('.action-buttons-vertical').offsetWidth;
+    const actionButtonsWidth = document.querySelector('.action-buttons-vertical').offsetWidth - 12;
     return {
         x: (e.clientX - rect.left - actionButtonsWidth) * scaleX,
         y: (e.clientY - rect.top) * scaleY
@@ -634,9 +634,10 @@ function getCanvasCoordinates(e) {
 
 function isPointInItem(x, y, item) {
     const buffer = 2; // Reduced buffer size
+    const actionButtonsWidth = 20;
     
-    // Translate point to item's center
-    const dx = x - item.x;
+    // Translate point to item's center, accounting for the action buttons width
+    const dx = (x + actionButtonsWidth) - item.x;
     const dy = y - item.y;
     
     // Rotate point
@@ -651,6 +652,7 @@ function isPointInItem(x, y, item) {
 
     console.log('Checking item:', item);
     console.log('Mouse position:', x, y);
+    console.log('Adjusted mouse position:', x + actionButtonsWidth, y);
     console.log('Item position:', item.x, item.y);
     console.log('Rotated position:', rotatedX, rotatedY);
     console.log('Item dimensions (with buffer):', fullWidth, fullHeight);
