@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wild Forest Map Maker</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Add this new topbar -->
+    <nav class="navbar navbar-expand navbar-light topbar">
+        <ul class="navbar-nav">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="fileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    File
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="fileDropdown">
+                    <!-- Add this new line -->
+                    <li><a class="dropdown-item" href="#" id="exportImage">Export</a></li>
+                    <!-- <li><a class="dropdown-item" href="#">Nothing to see here</a></li> -->
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="editDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Quick actions
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="editDropdown">
+                    <li><a class="dropdown-item" href="#" id="generateBackground">Generate background</a></li>
+                </ul>
+            </li>
+            <!-- <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="viewDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    View
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="viewDropdown">
+                    <li><a class="dropdown-item" href="#">Zoom In</a></li>
+                    <li><a class="dropdown-item" href="#">Zoom Out</a></li>
+                </ul>
+            </li> -->
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="helpDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Help
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="helpDropdown">
+                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="main-content">
+        <div id="options" class="accordion">
+            <!-- Categories and items will be dynamically loaded here -->
+        </div>
+
+        <div id="preview">
+            <div id="map-container">
+                <div class="action-buttons-vertical">
+                    <div class="btn-group-vertical" role="group" aria-label="Item actions">
+                        <button id="moveButton" class="btn-action" disabled title="Move">
+                            <i class="fas fa-arrows-alt"></i>
+                        </button>
+                        <button id="rotateButton" class="btn-action" disabled title="Rotate">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <button id="resizeButton" class="btn-action" disabled title="Resize">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <canvas id="map"></canvas>
+            </div>
+            <div id="sliderControls" style="display: none;">
+                <div id="rotateSlider" class="slider-control">
+                    <label for="rotateRange">Rotate:</label>
+                    <input type="range" id="rotateRange" min="0" max="360" value="0">
+                    <input type="number" id="rotateInput" min="0" max="360" value="0">
+                </div>
+                <div id="resizeSlider" class="slider-control">
+                    <label for="resizeRange">Resize:</label>
+                    <input type="range" id="resizeRange" min="10" max="200" value="100">
+                    <input type="number" id="resizeInput" min="10" max="200" value="100">
+                </div>
+            </div>
+            <div class="table-responsive mt-3">
+                <table id="itemsTable" class="table table-striped table-hover">
+                    <!-- Table content will be dynamically generated -->
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal for the About option -->
+    <div class="modal fade" id="aboutModal" tabindex="-1" aria-labelledby="aboutModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="aboutModalLabel">About</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Moa made this.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and Popper.js -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+    <script src="items_structure.js"></script>
+    <script src="map-maker.js"></script>
+</body>
+</html>
